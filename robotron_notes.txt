@@ -1,0 +1,179 @@
+mame64 -console -window -rompath C:\tma\ROMS robotron
+
+cpu = manager:machine().devices[":maincpu"]
+mem = cpu.spaces["program"]
+ioport = manager:machine():ioport()
+in0 = ioport.ports[":IN0"]
+move_up = { in0 = in0, field = in0.fields["Move Up"] }
+start1 = { in0 = in0, field = in0.fields["1 Player Start"] }
+mem:write_i8(0x9851, 0x99)
+
+-- start game:
+mem:write_i8(0xc804,0x10)
+mup.field:set_value(1)
+
+package.loaded['robotron']=nil
+r = require "robotron"
+
+
+
+for k,v in pairs(manager:machine().devices) do print(k) end
+
+cpu = manager:machine().devices[":maincpu"]
+mem = cpu.spaces["program"]
+pia_0 = manager:machine().devices[":pia_0"]
+
+print(mem:read_i8(0x9851))
+print(string.format("%02X",mem:read_i8(0xc804)))
+print(mem:write_i8(0xc804,0x00))
+print(string.format("%02X",mem:read_i8(0xc804)))
+
+for k,v in pairs(pia_0.state) do print(k) end
+
+
+
+ioport = manager:machine():ioport()
+for k,v in pairs(ioport.ports) do print(k) end
+in0 = ioport.ports[":IN0"]
+print(in0:tag())
+print(in0:read())
+for k,v in pairs(in0.fields) do print(k) end
+  Move Up
+  Fire Down
+  Fire Up
+  Move Down
+  Move Right
+  Move Left
+  2 Players Start
+  1 Player Start
+mup = { in0 = in0, field = in0.fields["Move Up"] }
+for k,v in pairs(mup) do print (k) end
+-- only 0,1 allowed:
+mup.field:set_value(1)
+mup.field:set_value(0)
+mdown = { in0 = in0, field = in0.fields["Move Down"] }
+
+
+ emu.register_frame_done(r.update,"frame")
+ 
+
+player_x EQU $09864                            ; X coordinate of player. #$4A = middle of screen, #$07 = as far as can go left, #$8C = as far as can go right of screen 
+player_y EQU $09866                            ; Y coordinate of player. #$7C = middle of screen, #$18 = as far as can go up, #$DF = as far as can go down
+; These variables are initialised by the code @ $2B0B
+p1_grunts EQU $BDFA
+p1_electrodes EQU $BDFB
+p1_mommies EQU $BDFC
+p1_daddies EQU $BDFD
+p1_mikeys EQU $BDFE
+p1_hulks EQU $BDFF
+p1_brains EQU $BE00
+p1_sphereoids EQU $BE01
+p1_quarks EQU $BE02
+p1_tanks EQU $BE03
+
+cur_grunts EQU $BE68
+cur_electrodes EQU $BE69
+cur_mommies EQU $BE6A
+cur_daddies EQU $BE6B
+cur_mikeys EQU $BE6C
+cur_hulks EQU $BE6D
+cur_brains EQU $BE6E                        
+cur_sphereoids EQU $BE6F
+cur_quarks EQU $BE70
+cur_tanks EQU $BE71
+
+
+family_list_pointer EQU $981F                          ; pointer to linked list of all family members
+spheroids_enforcers_quarks_sparks_shells EQU $9817     ; pointer to linked list of spheroids, enforcers, quarks, sparks and tankshells. 
+grunts_hulks_brains_progs_cruise_tanks EQU $9821       ; pointer to linked list of grunts, hulks, brains, progs, cruise missiles and tanks 
+electrode_list_pointer EQU $9823                       ; pointer to linked list of all electrodes
+
+; Family member object
+0x9918:0:9900 ; pointer to next
+0x991a:2:080F ; pointer to animation frame metadata?
+0x991c:4:5F18 ; X,Y
+0x991e:6:AA58
+0x9920:8:033A
+0x9922:10:5F00 ; X  whole,fractional
+0x9924:12:1800 ; Y, whole,fractional
+0x9926:14:0000
+0x9928:16:0000
+0x992a:18:0000
+0x992c:20:080F
+
+mem:write_i16(0x981c,0x618a)
+
+****************************************************************************
+
+    Blaster Bubbles Joust Robotron Sinistar Splat Stargate
+    ------------------------------------------------------
+
+    0000-8FFF ROM   (for Blaster, 0000-3FFF is a bank of 12 ROMs)
+    0000-97FF Video  RAM Bank switched with ROM (96FF for Blaster)
+    9800-BFFF RAM
+        0xBB00 Blaster only, Color 0 for each line (256 entry)
+        0xBC00 Blaster only, Color 0 flags, latch color only if bit 0 = 1 (256 entry)
+                             Erase background only if bit 1 = 1
+    C000-CFFF I/O
+    D000-FFFF ROM
+
+    c000-C00F color_registers  (16 bytes of BBGGGRRR)
+
+    c804 widget_pia_dataa (widget = I/O board)
+    c805 widget_pia_ctrla
+    c806 widget_pia_datab
+    c807 widget_pia_ctrlb (CB2 select between player 1 and player 2
+                          controls if Table or Joust)
+          bits 5-3 = 110 = player 2
+          bits 5-3 = 111 = player 1
+
+    c80c rom_pia_dataa
+    c80d rom_pia_ctrla
+    c80e rom_pia_datab
+          bits 0-5 = 6 bits to sound board
+          bits 6-7 plus CA2 and CB2 = 4 bits to drive the LED 7 segment
+                   Blaster only: bits 6-7 are for selecting the sound board
+    c80f rom_pia_ctrlb
+
+    C900 rom_enable_scr_ctrl  Switch between video ram and rom at 0000-97FF
+
+    C940 Blaster only: Select bank in the color Prom for color remap
+    C980 Blaster only: Select which ROM is at 0000-3FFF
+    C9C0 Blaster only: bit 0 = enable the color 0 changing each lines
+                       bit 1 = erase back each frame
+
+****************************************************************************
+
+    Robotron
+    --------
+    c804 widget_pia_dataa (widget = I/O board)
+      bit 0  Move Up
+      bit 1  Move Down
+      bit 2  Move Left
+      bit 3  Move Right
+      bit 4  1 Player
+      bit 5  2 Players
+      bit 6  Fire Up
+      bit 7  Fire Down
+
+    c806 widget_pia_datab
+      bit 0  Fire Left
+      bit 1  Fire Right
+      bit 2
+      bit 3
+      bit 4
+      bit 5
+      bit 6
+      bit 7
+
+    c80c rom_pia_dataa
+      bit 0  Auto Up
+      bit 1  Advance
+      bit 2  Right Coin
+      bit 3  High Score Reset
+      bit 4  Left Coin
+      bit 5  Center Coin
+      bit 6  Slam Door Tilt
+      bit 7  Hand Shake from sound board
+
+****************************************************************************
