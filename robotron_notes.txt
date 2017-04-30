@@ -4,9 +4,13 @@ cpu = manager:machine().devices[":maincpu"]
 mem = cpu.spaces["program"]
 ioport = manager:machine():ioport()
 in0 = ioport.ports[":IN0"]
+in1 = ioport.ports[":IN1"]
 move_up = { in0 = in0, field = in0.fields["Move Up"] }
 start1 = { in0 = in0, field = in0.fields["1 Player Start"] }
 mem:write_i8(0x9851, 0x99)
+
+ioport.ports[":IN0"].fields["Move Up"]:set_value(1)
+print(in0:read())
 
 -- start game:
 mem:write_i8(0xc804,0x10)
