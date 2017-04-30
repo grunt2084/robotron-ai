@@ -9,4 +9,13 @@ You will also want to have a look at Scott Tunstall's brilliant reverse-engineer
 
 Since 1982 when the game was introduced by Midway, designed by Vid Kidz, I have spent way too many hours trying to beat the robotrons and have only been humiliated.  I am finally going to take the upper hand!
 
+Instructions:
+
+  1. Place robotron.lua in the MAME plugins folder.
+  2. Start MAME: > mame64 -console -window -rompath C:\your_path\ROMS  robotron
+  3. Lua prompt> r = require "robotron"
+  4. Lua prompt> r.start(2)
+
+  
+  
 - grunt2084

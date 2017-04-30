@@ -1,7 +1,22 @@
+-- MAME Lua module to control player in Robotron 2084
+
+
 local M = {}
 
 local cpu = manager:machine().devices[":maincpu"]
 local mem = cpu.spaces["program"]
+local ioport = manager:machine():ioport()
+local in0 = ioport.ports[":IN0"]
+local in1 = ioport.ports[":IN1"]
+M.move_up = { in0 = in0, field = in0.fields["Move Up"] }
+M.move_down = { in0 = in0, field = in0.fields["Move Down"] }
+M.move_left = { in0 = in0, field = in0.fields["Move Left"] }
+M.move_right = { in0 = in0, field = in0.fields["Move Right"] }
+M.fire_up = { in0 = in0, field = in0.fields["Fire Up"] }
+M.fire_down = { in0 = in0, field = in0.fields["Fire Down"] }
+M.fire_left = { in1 = in1, field = in1.fields["Fire Left"] }
+M.fire_right = { in1 = in1, field = in1.fields["Fire Right"] }
+M.start1 = { in0 = in0, field = in0.fields["1 Player Start"] }
 
 M.family_ptr = 0x981F;
 M.family = {};
@@ -66,7 +81,8 @@ function M.start(on)
   -- add 99 coins
   mem:write_i8(0x9851, 0x99)
   -- start 1-player button
-  mem:write_i8(0xc804,0x10)
+  M.start1.field:set_value(1)
+  -- mem:write_i8(0xc804,0x10)
   -- update loop on
   M.on = on;
   -- register update loop callback function
@@ -78,8 +94,9 @@ end
 function M.stop()
   M.on = 0;
   M.sleep(1);
-  mem:write_i8(0xc804,0x00)
-  mem:write_i8(0xc806,0x00)
+  -- mem:write_i8(0xc804,0x00)
+  -- mem:write_i8(0xc806,0x00)
+  M.start1.field:set_value(0)
 end
 
 -- print object hex
@@ -252,25 +269,18 @@ function M.getmove4()
   -- bit 7  Fire Down
   --
   -- get 4-bit move
-  bit4 = 0x0000000f & mem:read_i8(0xc804);
+  -- bit4 = 0x0000000f & mem:read_i8(0xc804);
+  bit4 = 0x0000000f & in0:read();
   return bit4;
 end
 
 
 -- Apply 4-bit move command
 function M.move4(bit4)
-  -- c804 widget_pia_dataa (widget = I/O board)
-  -- bit 0  Move Up
-  -- bit 1  Move Down
-  -- bit 2  Move Left
-  -- bit 3  Move Right
-  -- bit 4  1 Player
-  -- bit 5  2 Players
-  -- bit 6  Fire Up
-  -- bit 7  Fire Down
-  -- clear move, keep fire
-  pia = 0x000000f0 & mem:read_i8(0xc804);
-  mem:write_i8(0xc804, pia | bit4)
+  M.move_up.field:set_value(bit4 & M.up);
+  M.move_down.field:set_value(bit4 & M.down);
+  M.move_right.field:set_value(bit4 & M.right);
+  M.move_left.field:set_value(bit4 & M.left);
 end
 
 -- flip 4-bit move/shoot command
@@ -318,41 +328,18 @@ function M.getshoot4()
   -- bit 7
   --
   -- get 4-bit fire (shift into lower 4 bits)
-  bit4 = (0x00ff & mem:read_i8(0xc804)) >> 6;
-  bit4 = bit4 | (0x00ff & mem:read_i8(0xc806)) << 2;
+  bit4 = (0x00ff & in0:read()) >> 6;
+  bit4 = bit4 | (0x00ff & in1:read()) << 2;
   return bit4;
 end
 
 
 -- Apply 4-bit shoot command
 function M.shoot4(bit4)
-  bit4 = bit4 & 0x000f;
-  -- c804 widget_pia_dataa (widget = I/O board)
-  -- bit 0  Move Up
-  -- bit 1  Move Down
-  -- bit 2  Move Left
-  -- bit 3  Move Right
-  -- bit 4  1 Player
-  -- bit 5  2 Players
-  -- bit 6  Fire Up
-  -- bit 7  Fire Down
-  --
-  -- c806 widget_pia_datab
-  -- bit 0  Fire Left
-  -- bit 1  Fire Right
-  -- bit 2
-  -- bit 3
-  -- bit 4
-  -- bit 5
-  -- bit 6
-  -- bit 7
-  --
-  -- clear fire, keep move
-  pia1 = 0x0000003f & mem:read_i8(0xc804);
-  -- pia2 = 0x00000000 & mem:read_i8(0xc806);
-  
-  mem:write_i8(0xc804, (pia1 | (bit4 & 0x0003) << 6))
-  mem:write_i8(0xc806, (bit4 >> 2))
+  M.fire_up.field:set_value(bit4 & M.up);
+  M.fire_down.field:set_value(bit4 & M.down);
+  M.fire_right.field:set_value(bit4 & M.right);
+  M.fire_left.field:set_value(bit4 & M.left);
 end
 
 
@@ -540,6 +527,7 @@ function M.fireline(objtable)
 end
 
 -- Chase nearest family
+-- return X,Y
 function M.chase(objtable)
   myX, myY = M.getmyxy();
   dX = 0;
