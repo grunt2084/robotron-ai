@@ -37,6 +37,11 @@ M.sdelay = 15;
 -- object element indices
 M.Xindex = 6;
 M.Yindex = 7;
+-- counter
+M.count = 0;
+-- Player coordinates
+M.myX = 0;
+M.myY = 0;
 
 -- c804 widget_pia_dataa (widget = I/O board)
 -- bit 0  Move Up
@@ -78,6 +83,8 @@ end
 
 -- start game
 function M.start(on)
+  -- reset counter
+  M.count = 0;
   -- add 99 coins
   mem:write_i8(0x9851, 0x99)
   -- start 1-player button
@@ -184,58 +191,73 @@ function M.getlistxy(listptr)
 end
 
 
---
+-- Copy object (array of 12 16-bit values) from arcade memory into Lua array
 function M.getobj(addr)
-  if addr == 0.
+  -- check valid addr
+  if addr == nil or addr == 0.
   then
     return nil;
   end
-
-  local obj = {0,0,0,0,0,0,0,0,0,0,0,0};
-  
+  -- intialize with zeros
+  -- Customized array: ptr, id, x, y, dist, dx, dy, dxr, dxy
+  --local obj = {0,0,0,0,0,0,0,0,0,0,0,0};
+--  local obj = {0,0,0,0,0,0,0,0,0};
+  obj = {};
   -- Next Object pointer
-  obj[1] = 0x0000ffff & mem:read_i16(addr + 0);
-  obj[2] = 0x0000ffff & mem:read_i16(addr + 2);
-  obj[3] = 0x0000ffff & mem:read_i16(addr + 4);
-  obj[4] = 0x0000ffff & mem:read_i16(addr + 6);
-  obj[5] = 0x0000ffff & mem:read_i16(addr + 8);
+  obj.next = 0x0000ffff & mem:read_i16(addr + 0);
+  --obj[2] = 0x0000ffff & mem:read_i16(addr + 2);
+  -- obj[3] = 0x0000ffff & mem:read_i16(addr + 4);
+  --obj[4] = 0x0000ffff & mem:read_i16(addr + 6);
+  -- Object ID???
+  obj.id = 0x0000ffff & mem:read_i16(addr + 8);
   -- X position
-  obj[6] = 0x0000ffff & mem:read_i16(addr + 10);
+  obj.X = 0x0000ffff & mem:read_i16(addr + 10);
   -- Y position
-  obj[7] = 0x0000ffff & mem:read_i16(addr + 12);
-  obj[8] = 0x0000ffff & mem:read_i16(addr + 14);
-  obj[9] = 0x0000ffff & mem:read_i16(addr + 16);
-  obj[10] = 0x0000ffff & mem:read_i16(addr + 18);
-  obj[11] = 0x0000ffff & mem:read_i16(addr + 20);
-  obj[12] = 0x0000ffff & mem:read_i16(addr + 22);
-  
+  obj.Y = 0x0000ffff & mem:read_i16(addr + 12);
+  -- obj[8] = 0x0000ffff & mem:read_i16(addr + 14);
+  -- obj[9] = 0x0000ffff & mem:read_i16(addr + 16);
+  -- obj[10] = 0x0000ffff & mem:read_i16(addr + 18);
+  -- obj[11] = 0x0000ffff & mem:read_i16(addr + 20);
+  -- obj[12] = 0x0000ffff & mem:read_i16(addr + 22);
+  obj.dX = obj.X - M.myX;
+  obj.dY = obj.Y - M.myY;
+  obj.dXr = obj.dX*0.707 - obj.dY*0.707;
+  obj.dYr = obj.dX*0.707 + obj.dY*0.707;
+  obj.dist = obj.dX*obj.dX + obj.dY*obj.dY;
+
   return obj;
 end
 
 
---
+-- append linked-list of objects to objlist array
 function M.getlistobj(listptr, objlist)
+  -- error check
   if listptr == nil or listptr == 0.
   then
     return nil;
   end
 
+  -- if no objlist, start new one.  Otherwise, append to given list
   if objlist == nil then
     objlist = {};
   end
 
+  -- 1st object address is at given listptr location
   local addr = 0x0000ffff & mem:read_i16(listptr);
-  
+  -- check if end-of-list
   if addr == 0.
   then
     return objlist;
   end
 
+  -- next object index: append
   local i = #objlist + 1;
   while (addr ~= 0)
   do
     objlist[i] = M.getobj(addr);
-    addr = objlist[i][1];
+    -- next, linked object address (first location in object)
+    addr = objlist[i].next;
+    -- next object index: append
     i = i + 1;
   end
   
@@ -245,14 +267,10 @@ end
 
 -- get current player x,y
 function M.getmyxy()
-  local x, y;
-
   -- player_x EQU $09864  ; X coordinate of player. #$4A = middle of screen, #$07 = as far as can go left, #$8C = as far as can go right of screen 
   -- player_y EQU $09866  ; Y coordinate of player. #$7C = middle of screen, #$18 = as far as can go up, #$DF = as far as can go down
-  x = 0x0000ffff & mem:read_i16(0x9864);
-  y = 0x0000ffff & mem:read_i16(0x9866);
-  
-  return x, y;
+  M.myX = 0x0000ffff & mem:read_i16(0x9864);
+  M.myY = 0x0000ffff & mem:read_i16(0x9866);
 end
 
 
@@ -345,23 +363,20 @@ end
 
 -- generate move command to go to x,y
 function M.gotoxy(x, y)
-  
-  mx, my = M.getmyxy();
-
   move = 0;      
-  if mx < x then
+  if M.myX < x then
   -- go right
     move = move | M.right
   end
-  if mx > x then
+  if M.myX > x then
   -- go left
     move = move | M.left
   end
-  if my < y then
+  if M.myY < y then
   -- go down
     move = move | M.down
   end
-  if my > y then
+  if M.myY > y then
   -- go up
     move = move | M.up
   end
@@ -403,31 +418,32 @@ end
 
 
 -- Find nearest to firing lines
-function M.fireline(objtable)
-  myX, myY = M.getmyxy();
-  dX = 0;
-  dY = 0;
-  dXr = 0;
-  dYr = 0;
-  minD = 1000000;
-  minI = 0;
-  move = 0;
-  shoot = 0;
-  --
+-- return 4-bit move, shoot commands
+function M.fireline(objtable, range)
+  -- check objtable
   if objtable == nil then
     return 0,0
   end
-  --
+  -- check range
+  if range == nil then
+    range = 10000;
+  end
+  -- Minimum distance to enemy.
+  minE = 1000000;
+  -- Minimum distance to nearest firing line.
+  minD = 1000000;
+  -- Index of nearest target
+  minI = 0;
+  move = 0;
+  shoot = 0;
+  -- Loop thru object array
   for i=1, #objtable do
-    -- check for not-a-grunt
-    -- if objtable[i][5] ~= 14966 then goto continue end
+    -- check if a Hulk
     -- 182 == Hulk?
-    -- if objtable[i][5] == 182 then goto continue end
+    -- if objtable[i].id == 182 then goto continue end
     --
-    dX = objtable[i][6] - myX;
-    dY = objtable[i][7] - myY;
     -- check in-range
-    if (math.abs(dX) > 10000) or (math.abs(dY) > 10000) then goto continue end
+    if (math.abs(objtable[i].dX) > range) or (math.abs(objtable[i].dY) > range) then goto continue end
     --
     -- -- check zero move X
     -- if dX == 0 then
@@ -446,66 +462,65 @@ function M.fireline(objtable)
       -- end
     -- end
     --
-    if math.abs(dX) < math.abs(minD) then
-      minD = dX;
+    --
+    -- Check Enemy Rotation 0 deg about Player
+    --
+    if math.abs(objtable[i].dX) < math.abs(minD) then
+      minD = objtable[i].dX;
       minI = i;
-      if dX < 0 then
+      if objtable[i].dX < 0 then
         move = M.left
       else
         move = M.right
       end
-      if dY < 0 then
+      if objtable[i].dY < 0 then
         shoot = M.up
       else
         shoot = M.down
       end
     end
     --
-    if math.abs(dY) < math.abs(minD) then
-      minD = dY;
+    if math.abs(objtable[i].dY) < math.abs(minD) then
+      minD = objtable[i].dY;
       minI = i;
-      if dY < 0 then
+      if objtable[i].dY < 0 then
         move = M.up
       else
         move = M.down
       end
-      if dX < 0 then
+      if objtable[i].dX < 0 then
         shoot = M.left
       else
         shoot = M.right
       end
     end
     --
-    -- Rotate Enemy 45 deg about Player
-    rX = objtable[i][6] - myX;
-    rY = objtable[i][7] - myY;
-    dXr = rX*0.707 - rY*0.707;
-    dYr = rX*0.707 + rY*0.707;
+    -- Check Enemy Rotation 45 deg about Player
     --
-    if math.abs(dXr) < math.abs(minD) then
-      minD = dXr;
+    if math.abs(objtable[i].dXr) < math.abs(minD) then
+      minD = objtable[i].dXr;
       minI = i;
-      if dXr < 0 then
+      if objtable[i].dXr < 0 then
         move = M.right | M.up
       else
         move = M.left | M.down
       end
-      if dYr < 0 then
+      if objtable[i].dYr < 0 then
         shoot = M.up | M.left
       else
         shoot = M.down | M.right
       end
     end
     --
-    if math.abs(dYr) < math.abs(minD) then
-      minD = dYr;
+    if math.abs(objtable[i].dYr) < math.abs(minD) then
+      minD = objtable[i].dYr;
       minI = i;
-      if dYr < 0 then
+      if objtable[i].dYr < 0 then
         move = M.down | M.right
       else
         move = M.up | M.left
       end
-      if dXr < 0 then
+      if objtable[i].dXr < 0 then
         shoot = M.left | M.down
       else
         shoot = M.right | M.up
@@ -517,7 +532,8 @@ function M.fireline(objtable)
   end -- for-loop
 
   -- check hulk: run away, not towards
-  if minI > 0 and objtable[minI][5] == 182 then
+--  if minI > 0 and objtable[minI][5] == 182 then
+  if minI > 0 and objtable[minI].id == 183 then
     -- move = M.flip4(shoot);
     move = 0
     shoot = 0
@@ -526,35 +542,36 @@ function M.fireline(objtable)
   return move, shoot;
 end
 
+
+
 -- Chase nearest family
 -- return X,Y
 function M.chase(objtable)
-  myX, myY = M.getmyxy();
-  dX = 0;
-  dY = 0;
   minD = math.huge;
   minI = 0;
   --
   if objtable == nil or #objtable == 0 then
-    return myX, myY
+    return M.myX, M.myY
   end
   --
   for i=1, #objtable do
-    --
-    dX = objtable[i][6] - myX;
-    dY = objtable[i][7] - myY;
-    temp = dX*dX + dY*dY
-    if temp < minD then
-      minD = temp;
+    if objtable[i].dist < minD then
+      minD = objtable[i].dist;
       minI = i;
     end
   end
-  return objtable[minI][6], objtable[minI][7];
+  return objtable[minI].X, objtable[minI].Y;
 end
 
 -- function called every frame: update move and shoot
 function M.update()
- 
+  M.count = M.count + 1;
+    -- get player X,Y
+  M.getmyxy();
+
+  -- On?
+  if M.on == 0 then return end
+  --
   M.family = M.getlistobj(M.family_ptr);
   -- M.grunts = M.getlistobj(M.grunts_ptr);
   -- M.electrodes = M.getlistobj(M.electrodes_ptr);
@@ -570,14 +587,14 @@ function M.update()
     end
     -- run
     if M.family ~= nil and #M.family > 0 then
-      M.gotoxy(M.family[1][M.Xindex], M.family[1][M.Yindex])
+      M.gotoxy(M.family[1].X, M.family[1].Y)
     else
-      M.gotoxy(M.getmyxy())
+      M.gotoxy(M.myX, M.myY)
     end
   elseif  M.on == 2 then
     move, shoot = M.fireline(M.baddies);
     -- get family
-    if (move | shoot) == 0 then
+    if (shoot == 0x0f) then
       M.gotoxy(M.chase(M.family))
       M.spraynpray()
     else

@@ -60,6 +60,14 @@ mdown = { in0 = in0, field = in0.fields["Move Down"] }
 
  emu.register_frame_done(r.update,"frame")
  
+-- Object IDs
+0x9821: grunts_hulks_brains_progs_cruise_tanks
+0x08: 3A76: Grunt
+0x08: 00B6: Hulk
+0x9817: spheroids_enforcers_quarks_sparks_shells
+0x08: 12C8: Spheroid
+0x08: 1483: Enforcer
+0x08: 14CD: Spark
 
 player_x EQU $09864                            ; X coordinate of player. #$4A = middle of screen, #$07 = as far as can go left, #$8C = as far as can go right of screen 
 player_y EQU $09866                            ; Y coordinate of player. #$7C = middle of screen, #$18 = as far as can go up, #$DF = as far as can go down
