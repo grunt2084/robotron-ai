@@ -7,6 +7,9 @@ mem = cpu.spaces["program"]
 ioport = manager:machine():ioport()
 in0 = ioport.ports[":IN0"]
 in1 = ioport.ports[":IN1"]
+
+for k,v in pairs(cpu.state) do print(k) end
+
 move_up = { in0 = in0, field = in0.fields["Move Up"] }
 start1 = { in0 = in0, field = in0.fields["1 Player Start"] }
 mem:write_i8(0x9851, 0x99)
@@ -21,7 +24,11 @@ mup.field:set_value(1)
 package.loaded['robotron']=nil
 r = require "robotron"
 
+screen = manager:machine().screens[":screen"]
+print(screen:width() .. "x" .. screen:height())
+screen:draw_box((r.myX>>8)*2, (r.myY>>8), (r.myX>>8)*2-5, (r.myY>>8)-5, 0xff00ffff, 0xff00ffff);
 
+r.screenfind(r.getobjxy(r.baddies[r.findnearest(r.baddies)]))
 
 for k,v in pairs(manager:machine().devices) do print(k) end
 

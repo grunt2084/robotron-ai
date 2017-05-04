@@ -3,6 +3,7 @@
 
 local M = {}
 
+local screen = manager:machine().screens[":screen"]
 local cpu = manager:machine().devices[":maincpu"]
 local mem = cpu.spaces["program"]
 local ioport = manager:machine():ioport()
@@ -49,6 +50,13 @@ M.hulk = 0x00b6;
 M.spheroid = 0x12c8;
 M.enforcer = 0x1483;
 M.spark = 0x14dc;
+M.quark = 0x4bc9;
+M.shell = 0x4FD5;
+M.tank = 0x4DF2;
+M.prog = 0x1f1f;
+M.cruise = 0x2119;
+M.brain = 0x1dd6;
+M.electrode = 0x3aa9;
 
 
 -- c804 widget_pia_dataa (widget = I/O board)
@@ -89,6 +97,10 @@ function M.credits(coins)
   mem:write_i8(0x9851, coins)
 end
 
+function M.screenfind(X, Y)
+  screen:draw_box((X>>8)*2, (Y>>8), (X>>8)*2-4, (Y>>8)-4, 0xff00ffff, 0xff00ffff);
+end
+
 -- start game
 function M.start(on)
   -- reset counter
@@ -104,14 +116,104 @@ function M.start(on)
   emu.register_frame_done(M.update,"frame")
 end
 
+-- cur_grunts EQU $BE68
+-- cur_electrodes EQU $BE69
+-- cur_mommies EQU $BE6A
+-- cur_daddies EQU $BE6B
+-- cur_mikeys EQU $BE6C
+-- cur_hulks EQU $BE6D
+-- cur_brains EQU $BE6E                        
+-- cur_sphereoids EQU $BE6F
+-- cur_quarks EQU $BE70
+-- cur_tanks EQU $BE71
+function grunt_count()
+  return mem:read_i8(0xbe68)
+end
+function electrode_count()
+  return mem:read_i8(0xBE69)
+end
+function mommie_count()
+  return mem:read_i8(0xBE6A)
+end
+function daddie_count()
+  return mem:read_i8(0xBE6B)
+end
+function mikey_count()
+  return mem:read_i8(0xBE6C)
+end
+function hulk_count()
+  return mem:read_i8(0xBE6D)
+end
+function brain_count()
+  return mem:read_i8(0xBE6E)
+end
+function spheroid_count()
+  return mem:read_i8(0xBE6F)
+end
+function quark_count()
+  return mem:read_i8(0xBE70)
+end
+function tank_count()
+  return mem:read_i8(0xBE71)
+end
+
+-- return object type string
+function M.objtypestr(otype)
+  if otype == M.daddy then return "daddy" end
+  if otype == M.mommy then return "mommy" end
+  if otype == M.mikey then return "mikey" end
+  if otype == M.grunt then return "grunt" end
+  if otype == M.hulk then return "hulk" end
+  if otype == M.spheroid then return "spheroid" end
+  if otype == M.enforcer then return "enforcer" end
+  if otype == M.spark then return "spark" end
+  if otype == M.quark then return "quark" end
+  if otype == M.shell then return "shell" end
+  if otype == M.tank then return "tank" end
+  if otype == M.prog then return "prog" end
+  if otype == M.cruise then return "cruise" end
+  if otype == M.brain then return "brain" end
+  if otype == M.electrode then return "electrode" end
+end
+
 -- stop update loop, sleep, reset inputs
 -- (player button needs to go to 0 before a new game can start)
 function M.stop()
   M.on = 0;
-  M.sleep(1);
-  -- mem:write_i8(0xc804,0x00)
-  -- mem:write_i8(0xc806,0x00)
+  M.move4(0);
+  M.shoot4(0);
+  -- M.sleep(1);
   M.start1.field:set_value(0)
+end
+
+
+-- print PC
+function M.printcpu(str)
+  -- B
+  -- S
+  -- D
+  -- U
+  -- CC
+  -- PC
+  -- Y
+  -- DP
+  -- X
+  -- CURPC
+  -- CURFLAGS
+  -- A
+  print(string.format("PC = %04X", cpu.state[str].value))
+end
+
+-- print location
+function M.printloc(addr)
+  data8 = 0x00FF & mem:read_i8(addr);
+  data16 = 0xFFFF & mem:read_i16(addr);
+  print(string.format("%04X: %04X: (%d) %02X: (%d)", addr, data16, data16, data8, data8))
+end
+
+-- set location
+function M.setloc(addr, data)
+  mem:write_i16(addr, data);
 end
 
 -- print object hex
@@ -137,14 +239,13 @@ end
 
 -- Follow linked-list: print out objects
 function M.printlist(listptr)
-  
+  -- check  
   if listptr == 0.
   then
     return nil;
   end
-
+  --
   local addr = 0x0000ffff & mem:read_i16(listptr);
-  
   while (addr ~= 0)
   do
     -- object are 24 bytes, 12 words??
@@ -155,48 +256,13 @@ end
 
 
 --
-function M.getobjxy(addr)
-  local x, y;
-  
-  if addr == 0.
-  then
+function M.getobjxy(obj)
+  if obj == nil then
     return nil, nil;
   end
-  x = 0x0000ffff & mem:read_i16(addr + 0x0a);
-  y = 0x0000ffff & mem:read_i16(addr + 0x0c);
-  
-  return x, y;
+  return obj.X, obj.Y;
 end
 
---
-function M.getlistxy(listptr)
-  local tabxy = {};
-  
-  if listptr == 0.
-  then
-    return nil;
-  end
-
-  local addr = 0x0000ffff & mem:read_i16(listptr);
-  
-  if addr == 0.
-  then
-    return nil;
-  end
-
-  local i = 1;
-  while (addr ~= 0)
-  do
-    x, y = M.getobjxy(addr);
-
-    tabxy[i + 0] = x
-    tabxy[i + 1] = y
-    i = i + 2;
-    addr = 0x0000ffff & mem:read_i16(addr);
-  end
-  
-  return tabxy;
-end
 
 
 -- Copy object (array of 12 16-bit values) from arcade memory into Lua array
@@ -227,14 +293,27 @@ function M.getobj(addr)
   -- obj[10] = 0x0000ffff & mem:read_i16(addr + 18);
   -- obj[11] = 0x0000ffff & mem:read_i16(addr + 20);
   -- obj[12] = 0x0000ffff & mem:read_i16(addr + 22);
-  obj.dX = obj.X - M.myX;
+  obj.dX = (obj.X - M.myX)*2;
   obj.dY = obj.Y - M.myY;
-  obj.dXr = obj.dX*0.707 - obj.dY*0.707;
-  obj.dYr = obj.dX*0.707 + obj.dY*0.707;
+  obj.dXr = math.floor(obj.dX*0.707 - obj.dY*0.707);
+  obj.dYr = math.floor(obj.dX*0.707 + obj.dY*0.707);
   -- distance from play to object (squared: why waste time taking square-root?)
   obj.dist = obj.dX*obj.dX + obj.dY*obj.dY;
 
   return obj;
+end
+
+
+-- print-out array of processed objects
+function M.printobjarray(objarray)
+  for i=1,#objarray do
+    print(M.objtypestr(objarray[i].id))
+    print(string.format("X = %04X (%d), Y = %04X (%d)", objarray[i].X, objarray[i].X, objarray[i].Y, objarray[i].Y))
+    print(string.format("dX = %d, dY = %d", objarray[i].dX, objarray[i].dY))
+    print(string.format("dXr = %d, dYr = %d", objarray[i].dXr, objarray[i].dYr))
+    print(string.format("dist = %d", objarray[i].dist))
+    print('--')
+  end
 end
 
 
@@ -395,11 +474,11 @@ end
 
 
 -- shoot sequentially in every direction
-function M.spraynpray()
+function M.spraynpray(shoot)
   M.scount = M.scount + 1;
   if M.scount >= M.sdelay then
     -- shoot
-    M.shoot4(M.fire[M.fireindex]);
+    shoot = M.fire[M.fireindex];
     
     if M.fireindex >= #M.fire then
       M.fireindex = 1;
@@ -408,6 +487,7 @@ function M.spraynpray()
     end
     M.scount = 0;
   end
+  return shoot;
 end
 
 
@@ -542,6 +622,41 @@ end
 
 
 -- Find nearest
+-- return index
+function M.findnearest(objtable, range, otype)
+  -- check objtable
+  if objtable == nil then
+    return 0
+  end
+  -- check range
+  if range == nil then
+    range = math.huge;
+  end
+  -- Minimum distance to nearest firing line.
+  minD = math.huge;
+  -- Index of nearest target
+  minI = 0;
+
+  -- Loop thru object array, find nearest
+  for i=1, #objtable do
+    -- check in-range
+    if (objtable[i].dist > range) then goto continue end
+    -- check otype
+    if (otype ~= nil) and (objtable[i].id ~= otype) then goto continue end
+
+    -- Find neares
+    if objtable[i].dist < minD then
+      minD = objtable[i].dist;
+      minI = i;
+    end
+    -- continue
+    ::continue::
+  end -- for-loop
+  
+  return minI;
+end
+
+-- Shoot nearest
 -- return 4-bit move, shoot commands
 function M.shootnearest(objtable, range)
   -- check objtable
@@ -684,51 +799,46 @@ function M.update()
     -- shoot
     -- M.spraynpray()
     if M.shootnrun() == 0 then
-      M.spraynpray()
+      shoot = M.spraynpray(M.getshoot4());
     end
     -- run
     if M.family ~= nil and #M.family > 0 then
-      M.move4(M.gotoxy(M.family[1].X, M.family[1].Y))
+      move = M.gotoxy(M.family[1].X, M.family[1].Y);
     else
-      M.move4(M.gotoxy(M.myX, M.myY))
+      move = M.gotoxy(M.myX, M.myY);
     end
   elseif  M.on == 2 then
     move, shoot = M.fireline(M.baddies);
     -- get family
     if (shoot == 0x0f) then
-      M.move4(M.gotoxy(M.chase(M.family)))
-      M.spraynpray()
-    else
-      M.move4(move);
-      M.shoot4(shoot);
+      move = M.gotoxy(M.chase(M.family));
+      shoot = M.spraynpray(M.getshoot4());
     end
   elseif  M.on == 3 then
     move, shoot = M.shootnearest(M.baddies);
     -- get family
     if (shoot == 0x0f) then
-      M.move4(M.gotoxy(M.chase(M.family)))
-      M.spraynpray()
-    else
-      M.move4(move);
-      M.shoot4(shoot);
+      move = M.gotoxy(M.chase(M.family));
+      shoot = M.spraynpray(M.getshoot4());
     end
   elseif M.on == 4 then
     -- Move/shoot nearest foe in bubble, move away from hulks
     move, shoot = M.shootnearest(M.baddies,50000000);
-    -- print(move,shoot)
+    -- None in bubble:
     if (move == 0) and (shoot == 0) then
       -- Move/shoot nearest line-of-fire spheroid or quark
       move, shoot = M.fireline(M.baddies, M.spheroid);
+      -- No spheroids:
       if (move == 0) and (shoot == 0) then
         -- Create path to nearest family: goto point (around hulks)
         -- Shoot nearest foe.
         if (M.family ~= nil) and (#M.family > 0) then
-          move = M.gotoxy(M.family[1].X, M.family[1].Y);
+          -- move = M.gotoxy(M.family[1].X, M.family[1].Y);
+          move = M.gotoxy(M.chase(M.family));
+          shoot = M.spraynpray(M.getshoot4())
         else
-          move = M.gotoxy(M.myX, M.myY);
-        end
-        if move == 0 then
-          -- no family: sit, spray & pray
+          -- kill remaining foes
+          move, shoot = M.fireline(M.baddies);
         end
       end
     end
