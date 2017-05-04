@@ -9,6 +9,8 @@ You will also want to have a look at Scott Tunstall's brilliant reverse-engineer
 
 Since 1982 when the game was introduced by Midway, designed by Vid Kidz, I have spent way too many hours trying to beat the robotrons and have only been humiliated.  I am finally going to take the upper hand!
 
+- grunt2084
+
 Instructions:
 
   1. Place robotron.lua in the MAME plugins folder.
@@ -16,6 +18,17 @@ Instructions:
   3. Lua prompt> r = require "robotron"
   4. Lua prompt> r.start(2)
 
+AI Evolution:
+
+  1. Run towards family at top of list, shoot ahead.
+     - No family: sit and spray in all directions.
+  2. Move/Shoot robotron that requires least player repositioning, within a given range.
+     - None in range: pickup nearest family & shoot ahead.
+     - No family: sit and spray in all directions
+  3. Move/Shoot nearest robotron.
+  4. Move/shoot nearest foe in bubble, move away from hulks
+     None?: Move/shoot nearest spheroid or quark
+     None?: Create path to nearest family: goto point (around hulks)
+            Shoot nearest foe.
+     No family: sit, spray, pray
   
-  
-- grunt2084

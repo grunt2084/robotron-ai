@@ -21,11 +21,9 @@ M.start1 = { in0 = in0, field = in0.fields["1 Player Start"] }
 M.family_ptr = 0x981F;
 M.family = {};
 -- grunts_hulks_brains_progs_cruise_tanks EQU $9821
-M.grunts_ptr = 0x9821;
-M.grunts = {}
+M.grunts_hulks_brains_progs_cruise_tanks = 0x9821;
 -- spheroids_enforcers_quarks_sparks_shells EQU $9817
-M.quarks_ptr = 0x9817;
-M.quarks = {};
+M.spheroids_enforcers_quarks_sparks_shells = 0x9817;
 --
 M.baddies = {};
 -- electrode_list_pointer EQU $9823
@@ -42,6 +40,16 @@ M.count = 0;
 -- Player coordinates
 M.myX = 0;
 M.myY = 0;
+-- object type @ offset 0x08
+M.daddy = 0x033a;
+M.mommy = 0x0335;
+M.mikey = 0x0330;
+M.grunt = 0x3a76;
+M.hulk = 0x00b6;
+M.spheroid = 0x12c8;
+M.enforcer = 0x1483;
+M.spark = 0x14dc;
+
 
 -- c804 widget_pia_dataa (widget = I/O board)
 -- bit 0  Move Up
@@ -223,6 +231,7 @@ function M.getobj(addr)
   obj.dY = obj.Y - M.myY;
   obj.dXr = obj.dX*0.707 - obj.dY*0.707;
   obj.dYr = obj.dX*0.707 + obj.dY*0.707;
+  -- distance from play to object (squared: why waste time taking square-root?)
   obj.dist = obj.dX*obj.dX + obj.dY*obj.dY;
 
   return obj;
@@ -361,7 +370,7 @@ function M.shoot4(bit4)
 end
 
 
--- generate move command to go to x,y
+-- return move command to go to x,y
 function M.gotoxy(x, y)
   move = 0;      
   if M.myX < x then
@@ -381,7 +390,7 @@ function M.gotoxy(x, y)
     move = move | M.up
   end
   -- update move
-  M.move4(move);
+  return move;
 end
 
 
@@ -419,50 +428,39 @@ end
 
 -- Find nearest to firing lines
 -- return 4-bit move, shoot commands
-function M.fireline(objtable, range)
+function M.fireline(objtable, otype)
   -- check objtable
   if objtable == nil then
     return 0,0
   end
-  -- check range
-  if range == nil then
-    range = 10000;
-  end
-  -- Minimum distance to enemy.
-  minE = 1000000;
   -- Minimum distance to nearest firing line.
-  minD = 1000000;
+  minD = math.huge;
   -- Index of nearest target
   minI = 0;
   move = 0;
   shoot = 0;
   -- Loop thru object array
   for i=1, #objtable do
-    -- check if a Hulk
-    -- 182 == Hulk?
-    -- if objtable[i].id == 182 then goto continue end
+    -- check otype
+    if otype ~= nil and objtable[i].id ~= otype then goto continue end
     --
-    -- check in-range
-    if (math.abs(objtable[i].dX) > range) or (math.abs(objtable[i].dY) > range) then goto continue end
-    --
-    -- -- check zero move X
-    -- if dX == 0 then
-      -- if dY > 0 then
-        -- return 0, M.down;
-      -- else
-        -- return 0, M.up;
-      -- end
-    -- end
-    -- -- check zero move Y
-    -- if dY == 0 then
-      -- if dX > 0 then
-        -- return 0, M.right;
-      -- else
-        -- return 0, M.left;
-      -- end
-    -- end
-    --
-    --
+    -- check zero move X
+    if objtable[i].dX == 0 then
+      if objtable[i].dY > 0 then
+        return 0, M.down;
+      else
+        return 0, M.up;
+      end
+    end
+    -- check zero move Y
+    if objtable[i].dY == 0 then
+      if objtable[i].dX > 0 then
+        return 0, M.right;
+      else
+        return 0, M.left;
+      end
+    end
+ 
     -- Check Enemy Rotation 0 deg about Player
     --
     if math.abs(objtable[i].dX) < math.abs(minD) then
@@ -543,6 +541,108 @@ function M.fireline(objtable, range)
 end
 
 
+-- Find nearest
+-- return 4-bit move, shoot commands
+function M.shootnearest(objtable, range)
+  -- check objtable
+  if objtable == nil then
+    return 0,0
+  end
+  -- check range
+  if range == nil then
+    range = math.huge;
+  end
+  -- Minimum distance to nearest firing line.
+  minD = math.huge;
+  -- Index of nearest target
+  minI = 0;
+  move = 0;
+  shoot = 0;
+
+  -- Loop thru object array, find nearest
+  for i=1, #objtable do
+    -- check in-range
+    if (objtable[i].dist > range) then goto continue end
+
+    -- Find nearest Enemy
+    if objtable[i].dist < minD then
+      minD = objtable[i].dist;
+      minI = i;
+    end
+    -- continue
+    ::continue::
+  end -- for-loop
+
+  if minI == 0 then return 0,0 end
+  -- calculate move, shoot
+  -- put this in a function?
+  -- assume dX is min
+  minD = objtable[minI].dX;
+--  if math.abs(objtable[minI].dX) < math.abs(minD) then
+    if objtable[minI].dX < 0 then
+      move = M.left
+    else
+      move = M.right
+    end
+    if objtable[minI].dY < 0 then
+      shoot = M.up
+    else
+      shoot = M.down
+    end
+--  end
+  --
+  if math.abs(objtable[minI].dY) < math.abs(minD) then
+    minD = objtable[minI].dY;
+    if objtable[minI].dY < 0 then
+      move = M.up
+    else
+      move = M.down
+    end
+    if objtable[minI].dX < 0 then
+      shoot = M.left
+    else
+      shoot = M.right
+    end
+  end
+  --
+  -- Check Enemy Rotation 45 deg about Player
+  --
+  if math.abs(objtable[minI].dXr) < math.abs(minD) then
+    minD = objtable[minI].dXr;
+    if objtable[minI].dXr < 0 then
+      move = M.right | M.up
+    else
+      move = M.left | M.down
+    end
+    if objtable[minI].dYr < 0 then
+      shoot = M.up | M.left
+    else
+      shoot = M.down | M.right
+    end
+  end
+  --
+  if math.abs(objtable[minI].dYr) < math.abs(minD) then
+--    minD = objtable[minI].dYr;
+    if objtable[minI].dYr < 0 then
+      move = M.down | M.right
+    else
+      move = M.up | M.left
+    end
+    if objtable[minI].dXr < 0 then
+      shoot = M.left | M.down
+    else
+      shoot = M.right | M.up
+    end
+  end
+  
+  -- check hulk: run away, not towards
+  if minI > 0 and objtable[minI].id == M.hulk then
+    move = M.gotoxy(M.myX - objtable[minI].dX, M.myY - objtable[minI].dY);
+  end
+  
+  return move, shoot;
+end
+
 
 -- Chase nearest family
 -- return X,Y
@@ -568,16 +668,17 @@ function M.update()
   M.count = M.count + 1;
     -- get player X,Y
   M.getmyxy();
-
+  move = 0;
+  shoot = 0;
   -- On?
   if M.on == 0 then return end
   --
   M.family = M.getlistobj(M.family_ptr);
-  -- M.grunts = M.getlistobj(M.grunts_ptr);
+  -- M.grunts = M.getlistobj(M.grunts_hulks_brains_progs_cruise_tanks);
   -- M.electrodes = M.getlistobj(M.electrodes_ptr);
-  M.baddies = M.getlistobj(M.grunts_ptr);
+  M.baddies = M.getlistobj(M.grunts_hulks_brains_progs_cruise_tanks);
   M.baddies = M.getlistobj(M.electrodes_ptr, M.baddies);
-  M.baddies = M.getlistobj(M.quarks_ptr, M.baddies);
+  M.baddies = M.getlistobj(M.spheroids_enforcers_quarks_sparks_shells, M.baddies);
 
   if M.on == 1 then
     -- shoot
@@ -587,21 +688,53 @@ function M.update()
     end
     -- run
     if M.family ~= nil and #M.family > 0 then
-      M.gotoxy(M.family[1].X, M.family[1].Y)
+      M.move4(M.gotoxy(M.family[1].X, M.family[1].Y))
     else
-      M.gotoxy(M.myX, M.myY)
+      M.move4(M.gotoxy(M.myX, M.myY))
     end
   elseif  M.on == 2 then
     move, shoot = M.fireline(M.baddies);
     -- get family
     if (shoot == 0x0f) then
-      M.gotoxy(M.chase(M.family))
+      M.move4(M.gotoxy(M.chase(M.family)))
       M.spraynpray()
     else
       M.move4(move);
       M.shoot4(shoot);
     end
-  end
+  elseif  M.on == 3 then
+    move, shoot = M.shootnearest(M.baddies);
+    -- get family
+    if (shoot == 0x0f) then
+      M.move4(M.gotoxy(M.chase(M.family)))
+      M.spraynpray()
+    else
+      M.move4(move);
+      M.shoot4(shoot);
+    end
+  elseif M.on == 4 then
+    -- Move/shoot nearest foe in bubble, move away from hulks
+    move, shoot = M.shootnearest(M.baddies,50000000);
+    -- print(move,shoot)
+    if (move == 0) and (shoot == 0) then
+      -- Move/shoot nearest line-of-fire spheroid or quark
+      move, shoot = M.fireline(M.baddies, M.spheroid);
+      if (move == 0) and (shoot == 0) then
+        -- Create path to nearest family: goto point (around hulks)
+        -- Shoot nearest foe.
+        if (M.family ~= nil) and (#M.family > 0) then
+          move = M.gotoxy(M.family[1].X, M.family[1].Y);
+        else
+          move = M.gotoxy(M.myX, M.myY);
+        end
+        if move == 0 then
+          -- no family: sit, spray & pray
+        end
+      end
+    end
+  end -- 4
+  M.move4(move);
+  M.shoot4(shoot);
 end
   
 return M

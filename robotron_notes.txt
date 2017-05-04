@@ -1,5 +1,7 @@
 mame64 -console -window -rompath C:\tma\ROMS robotron
 
+-- screen 292x240
+
 cpu = manager:machine().devices[":maincpu"]
 mem = cpu.spaces["program"]
 ioport = manager:machine():ioport()
