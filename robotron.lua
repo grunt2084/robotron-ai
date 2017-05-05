@@ -98,7 +98,8 @@ function M.credits(coins)
 end
 
 function M.screenfind(X, Y)
-  screen:draw_box((X>>8)*2, (Y>>8), (X>>8)*2-4, (Y>>8)-4, 0xff00ffff, 0xff00ffff);
+  --screen:draw_box((X>>8)*2, (Y>>8), (X>>8)*2-4, (Y>>8)-4, 0xff00ffff, 0xff00ffff);
+  screen:draw_box((X)*2, (Y), (X)*2-4, (Y)-4, 0xff00ffff, 0xff00ffff);
 end
 
 -- start game
@@ -280,14 +281,18 @@ function M.getobj(addr)
   -- Next Object pointer
   obj.next = 0x0000ffff & mem:read_i16(addr + 0);
   --obj[2] = 0x0000ffff & mem:read_i16(addr + 2);
-  -- obj[3] = 0x0000ffff & mem:read_i16(addr + 4);
+  posxy = 0x0000ffff & mem:read_i16(addr + 4);
   --obj[4] = 0x0000ffff & mem:read_i16(addr + 6);
   -- Object ID???
   obj.id = 0x0000ffff & mem:read_i16(addr + 8);
-  -- X position
-  obj.X = 0x0000ffff & mem:read_i16(addr + 10);
-  -- Y position
-  obj.Y = 0x0000ffff & mem:read_i16(addr + 12);
+  -- X,Y position
+  if (obj.id == M.cruise) or (obj.id == M.prog) then
+    obj.X = (0x0000ff00 & posxy);
+    obj.Y = (0x00000ff & posxy)<<8;
+  else
+    obj.X = 0x0000ffff & mem:read_i16(addr + 10);
+    obj.Y = 0x0000ffff & mem:read_i16(addr + 12);
+  end
   -- obj[8] = 0x0000ffff & mem:read_i16(addr + 14);
   -- obj[9] = 0x0000ffff & mem:read_i16(addr + 16);
   -- obj[10] = 0x0000ffff & mem:read_i16(addr + 18);
@@ -359,6 +364,8 @@ function M.getmyxy()
   -- player_y EQU $09866  ; Y coordinate of player. #$7C = middle of screen, #$18 = as far as can go up, #$DF = as far as can go down
   M.myX = 0x0000ffff & mem:read_i16(0x9864);
   M.myY = 0x0000ffff & mem:read_i16(0x9866);
+  --M.myX = (0x0000ffff & mem:read_i16(0x9864))>>8;
+  --M.myY = (0x0000ffff & mem:read_i16(0x9866))>>8;
 end
 
 
@@ -579,9 +586,9 @@ function M.fireline(objtable, otype)
       minD = objtable[i].dXr;
       minI = i;
       if objtable[i].dXr < 0 then
-        move = M.right | M.up
-      else
         move = M.left | M.down
+      else
+        move = M.right | M.up
       end
       if objtable[i].dYr < 0 then
         shoot = M.up | M.left
@@ -594,9 +601,9 @@ function M.fireline(objtable, otype)
       minD = objtable[i].dYr;
       minI = i;
       if objtable[i].dYr < 0 then
-        move = M.down | M.right
-      else
         move = M.up | M.left
+      else
+        move = M.down | M.right
       end
       if objtable[i].dXr < 0 then
         shoot = M.left | M.down
@@ -725,9 +732,9 @@ function M.shootnearest(objtable, range)
   if math.abs(objtable[minI].dXr) < math.abs(minD) then
     minD = objtable[minI].dXr;
     if objtable[minI].dXr < 0 then
-      move = M.right | M.up
-    else
       move = M.left | M.down
+    else
+      move = M.right | M.up
     end
     if objtable[minI].dYr < 0 then
       shoot = M.up | M.left
@@ -739,9 +746,9 @@ function M.shootnearest(objtable, range)
   if math.abs(objtable[minI].dYr) < math.abs(minD) then
 --    minD = objtable[minI].dYr;
     if objtable[minI].dYr < 0 then
-      move = M.down | M.right
-    else
       move = M.up | M.left
+    else
+      move = M.down | M.right
     end
     if objtable[minI].dXr < 0 then
       shoot = M.left | M.down
