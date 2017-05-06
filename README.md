@@ -16,8 +16,10 @@ Instructions:
   1. Place robotron.lua in the MAME plugins folder.
   2. Start MAME: > mame64 -console -window -rompath C:\your_path\ROMS  robotron
   3. Lua prompt> r = require "robotron"
-  4. Lua prompt> r.start(2)
+  4. Lua prompt> r.start(4)
 
+  Note that r.start(4) will start the game and run algorithm 4.  There are currently 1-4.
+  
 AI Evolution:
 
   1. Run towards family at top of list, shoot ahead.
@@ -27,7 +29,7 @@ AI Evolution:
      - No family: sit and spray in all directions
   3. Move/Shoot nearest robotron.
   4. Move/shoot nearest foe in bubble, move away from hulks
-     None?: Move/shoot nearest (to line-of-fire) spheroid
-     None?: Chase nearest family, circular spray laser
-     No family: Move/shoot nearest foe (to line-of-fire)
+     - None?: Move/shoot nearest (to line-of-fire) spheroid
+     - None?: Chase nearest family, circular spray laser
+     - No family: Move/shoot nearest foe (to line-of-fire)
   
