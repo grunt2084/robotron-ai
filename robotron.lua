@@ -39,8 +39,17 @@ M.Yindex = 7;
 -- counter
 M.count = 0;
 -- Player coordinates
-M.myX = 0;
-M.myY = 0;
+M.my = {}
+M.my.X = 0;
+M.my.Y = 0;
+-- Goto coordinates (if any)
+M.go = {}
+M.go.X = 0;
+M.go.Y = 0;
+-- Waypoint coordinates (if any)
+M.wp = {}
+M.wp.X = 0;
+M.wp.Y = 0;
 -- object type @ offset 0x08
 M.daddy = 0x033a;
 M.mommy = 0x0335;
@@ -58,6 +67,7 @@ M.cruise = 0x2119;
 M.brain = 0x1dd6;
 M.electrode = 0x3aa9;
 
+M.wavefoes = 0;
 
 -- c804 widget_pia_dataa (widget = I/O board)
 -- bit 0  Move Up
@@ -98,8 +108,14 @@ function M.credits(coins)
 end
 
 function M.screenfind(X, Y)
-  --screen:draw_box((X>>8)*2, (Y>>8), (X>>8)*2-4, (Y>>8)-4, 0xff00ffff, 0xff00ffff);
-  screen:draw_box((X)*2, (Y), (X)*2-4, (Y)-4, 0xff00ffff, 0xff00ffff);
+  screen:draw_box((X>>8)*2, (Y>>8), (X>>8)*2-4, (Y>>8)-4, 0xff00ffff, 0xff00ffff);
+  --screen:draw_box((X)*2, (Y), (X)*2-4, (Y)-4, 0xff00ffff, 0xff00ffff);
+end
+
+function M.screenline(X1, Y1, X2, Y2)
+  screen:draw_line((X1>>8)*2, Y1>>8, (X2>>8)*2, Y2>>8, 0xff00ffff); -- (x0, y0, x1, y1, line-color)
+  --screen:draw_line(X1*2, Y1, X2*2, Y2, 0xff00ffff); -- (x0, y0, x1, y1, line-color)
+  -- M.sleep(1);
 end
 
 -- start game
@@ -127,35 +143,43 @@ end
 -- cur_sphereoids EQU $BE6F
 -- cur_quarks EQU $BE70
 -- cur_tanks EQU $BE71
-function grunt_count()
+function M.grunt_count()
   return mem:read_i8(0xbe68)
 end
-function electrode_count()
+function M.electrode_count()
   return mem:read_i8(0xBE69)
 end
-function mommie_count()
+function M.mommie_count()
   return mem:read_i8(0xBE6A)
 end
-function daddie_count()
+function M.daddie_count()
   return mem:read_i8(0xBE6B)
 end
-function mikey_count()
+function M.mikey_count()
   return mem:read_i8(0xBE6C)
 end
-function hulk_count()
+function M.hulk_count()
   return mem:read_i8(0xBE6D)
 end
-function brain_count()
+function M.brain_count()
   return mem:read_i8(0xBE6E)
 end
-function spheroid_count()
+function M.spheroid_count()
   return mem:read_i8(0xBE6F)
 end
-function quark_count()
+function M.quark_count()
   return mem:read_i8(0xBE70)
 end
-function tank_count()
+function M.tank_count()
   return mem:read_i8(0xBE71)
+end
+function M.foe_count()
+  -- Enemies that keep wave alive missing enforcers
+  return M.grunt_count() + M.brain_count() + M.spheroid_count() + M.quark_count() + M.tank_count();
+end
+function M.family_count()
+  -- family count
+  return M.mommie_count() + M.daddie_count() + M.mikey_count();
 end
 
 -- return object type string
@@ -264,7 +288,11 @@ function M.getobjxy(obj)
   return obj.X, obj.Y;
 end
 
-
+function M.distance(obj1, obj2)
+  dx = obj1.X - obj2.X;
+  dy = obj1.Y - obj2.Y;
+  return dx*dx + dy*dy;
+end
 
 -- Copy object (array of 12 16-bit values) from arcade memory into Lua array
 function M.getobj(addr)
@@ -298,8 +326,8 @@ function M.getobj(addr)
   -- obj[10] = 0x0000ffff & mem:read_i16(addr + 18);
   -- obj[11] = 0x0000ffff & mem:read_i16(addr + 20);
   -- obj[12] = 0x0000ffff & mem:read_i16(addr + 22);
-  obj.dX = (obj.X - M.myX)*2;
-  obj.dY = obj.Y - M.myY;
+  obj.dX = (obj.X - M.my.X)*2;
+  obj.dY = obj.Y - M.my.Y;
   obj.dXr = math.floor(obj.dX*0.707 - obj.dY*0.707);
   obj.dYr = math.floor(obj.dX*0.707 + obj.dY*0.707);
   -- distance from play to object (squared: why waste time taking square-root?)
@@ -348,6 +376,8 @@ function M.getlistobj(listptr, objlist)
   while (addr ~= 0)
   do
     objlist[i] = M.getobj(addr);
+    -- update foe count
+    if (objlist[i].id == M.enforcer) then M.wavefoes = M.wavefoes + 1 end;
     -- next, linked object address (first location in object)
     addr = objlist[i].next;
     -- next object index: append
@@ -362,8 +392,8 @@ end
 function M.getmyxy()
   -- player_x EQU $09864  ; X coordinate of player. #$4A = middle of screen, #$07 = as far as can go left, #$8C = as far as can go right of screen 
   -- player_y EQU $09866  ; Y coordinate of player. #$7C = middle of screen, #$18 = as far as can go up, #$DF = as far as can go down
-  M.myX = 0x0000ffff & mem:read_i16(0x9864);
-  M.myY = 0x0000ffff & mem:read_i16(0x9866);
+  M.my.X = 0x0000ffff & mem:read_i16(0x9864);
+  M.my.Y = 0x0000ffff & mem:read_i16(0x9866);
   --M.myX = (0x0000ffff & mem:read_i16(0x9864))>>8;
   --M.myY = (0x0000ffff & mem:read_i16(0x9866))>>8;
 end
@@ -459,19 +489,19 @@ end
 -- return move command to go to x,y
 function M.gotoxy(x, y)
   move = 0;      
-  if M.myX < x then
+  if M.my.X < x then
   -- go right
     move = move | M.right
   end
-  if M.myX > x then
+  if M.my.X > x then
   -- go left
     move = move | M.left
   end
-  if M.myY < y then
+  if M.my.Y < y then
   -- go down
     move = move | M.down
   end
-  if M.myY > y then
+  if M.my.Y > y then
   -- go up
     move = move | M.up
   end
@@ -530,6 +560,8 @@ function M.fireline(objtable, otype)
   for i=1, #objtable do
     -- check otype
     if otype ~= nil and objtable[i].id ~= otype then goto continue end
+    -- check Hulk (skip Hulks)
+    if objtable[i].id == M.hulk then goto continue end
     --
     -- check zero move X
     if objtable[i].dX == 0 then
@@ -651,7 +683,7 @@ function M.findnearest(objtable, range, otype)
     -- check otype
     if (otype ~= nil) and (objtable[i].id ~= otype) then goto continue end
 
-    -- Find neares
+    -- Find nearest
     if objtable[i].dist < minD then
       minD = objtable[i].dist;
       minI = i;
@@ -759,7 +791,30 @@ function M.shootnearest(objtable, range)
   
   -- check hulk: run away, not towards
   if minI > 0 and objtable[minI].id == M.hulk then
-    move = M.gotoxy(M.myX - objtable[minI].dX, M.myY - objtable[minI].dY);
+    -- cw = {}
+    -- cw.X = M.my.X + objtable[minI].dX;
+    -- cw.Y = M.my.Y - objtable[minI].dY;
+    -- ccw = {}
+    -- ccw.X = M.my.X - objtable[minI].dX;
+    -- ccw.Y = M.my.Y + objtable[minI].dY;
+    -- move straight away
+--    if (M.go.X <= 0) or (M.go.Y <= 0) then
+      M.wp.X = M.my.X - objtable[minI].dX/2;
+      M.wp.Y = M.my.Y - objtable[minI].dY;
+      move = M.gotoxy(M.wp.X, M.wp.Y);
+    -- elseif M.distance(M.go, cw) < M.distance(M.go, ccw) then
+      -- M.wp.X = cw.X;
+      -- M.wp.Y = cw.Y;
+      -- -- move clockwise away
+      -- move = M.gotoxy(cw.X, cw.Y);
+      -- --move = M.gotoxy(M.my.X - objtable[minI].dX, M.my.Y - objtable[minI].dY);
+    -- else
+      -- M.wp.X = ccw.X;
+      -- M.wp.Y = ccw.Y;
+      -- -- move counter-clockwise away
+      -- move = M.gotoxy(ccw.X, ccw.Y);
+      -- --move = M.gotoxy(M.my.X - objtable[minI].dX, M.my.Y - objtable[minI].dY);
+    -- end
   end
   
   return move, shoot;
@@ -768,23 +823,25 @@ end
 
 -- Chase nearest family
 -- return X,Y
-function M.chase(objtable)
+function M.chase(famtable)
   minD = math.huge;
   minI = 0;
   --
-  if objtable == nil or #objtable == 0 then
-    return M.myX, M.myY
+  if famtable == nil or #famtable == 0 then
+    return M.my.X, M.my.Y
   end
   --
-  for i=1, #objtable do
-    if objtable[i].dist < minD then
-      minD = objtable[i].dist;
+  for i=1, #famtable do
+    if famtable[i].dist < minD then
+      minD = famtable[i].dist;
       minI = i;
     end
   end
-  return objtable[minI].X, objtable[minI].Y;
+  return famtable[minI].X, famtable[minI].Y;
 end
 
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- function called every frame: update move and shoot
 function M.update()
   M.count = M.count + 1;
@@ -792,16 +849,25 @@ function M.update()
   M.getmyxy();
   move = 0;
   shoot = 0;
+  M.go.X = 0;
+  M.go.Y = 0;
   -- On?
   if M.on == 0 then return end
-  --
+  if M.on == 0 then return end
+  -- call foe_count BEFORE getobjlist()!
+  -- wavefoes are objects that keep the wave alive
+  M.wavefoes = M.foe_count();
   M.family = M.getlistobj(M.family_ptr);
   -- M.grunts = M.getlistobj(M.grunts_hulks_brains_progs_cruise_tanks);
   -- M.electrodes = M.getlistobj(M.electrodes_ptr);
   M.baddies = M.getlistobj(M.grunts_hulks_brains_progs_cruise_tanks);
   M.baddies = M.getlistobj(M.electrodes_ptr, M.baddies);
   M.baddies = M.getlistobj(M.spheroids_enforcers_quarks_sparks_shells, M.baddies);
-
+  if (M.family ~= nil) and (#M.family > 0) then
+    -- move = M.gotoxy(M.family[1].X, M.family[1].Y);
+    M.go.X, M.go.Y = M.chase(M.family);
+  end
+  
   if M.on == 1 then
     -- shoot
     -- M.spraynpray()
@@ -812,7 +878,7 @@ function M.update()
     if M.family ~= nil and #M.family > 0 then
       move = M.gotoxy(M.family[1].X, M.family[1].Y);
     else
-      move = M.gotoxy(M.myX, M.myY);
+      move = M.gotoxy(M.my.X, M.my.Y);
     end
   elseif  M.on == 2 then
     move, shoot = M.fireline(M.baddies);
@@ -834,15 +900,23 @@ function M.update()
     -- None in bubble:
     if (move == 0) and (shoot == 0) then
       -- Move/shoot nearest line-of-fire spheroid or quark
-      move, shoot = M.fireline(M.baddies, M.spheroid);
+      -- But ONLY if #M.family==0 OR M.foes > 1
+      if (#M.family == 0) or (M.wavefoes > 1) then
+        move, shoot = M.fireline(M.baddies, M.spheroid);
+      end
       -- No spheroids:
       if (move == 0) and (shoot == 0) then
         -- Create path to nearest family: goto point (around hulks)
         -- Shoot nearest foe.
-        if (M.family ~= nil) and (#M.family > 0) then
+        if (M.go.X > 0) and (M.go.Y > 0) then
           -- move = M.gotoxy(M.family[1].X, M.family[1].Y);
-          move = M.gotoxy(M.chase(M.family));
-          shoot = M.spraynpray(M.getshoot4())
+          move = M.gotoxy(M.go.X, M.go.Y);
+          -- But ONLY shoot if #M.family==0 OR M.wavefoes > 1
+          if (#M.family == 0) or (M.wavefoes > 1) then
+            shoot = M.spraynpray(M.getshoot4())
+          else
+            shoot = 0;
+          end
         else
           -- kill remaining foes
           move, shoot = M.fireline(M.baddies);
@@ -853,5 +927,7 @@ function M.update()
   M.move4(move);
   M.shoot4(shoot);
 end
-  
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
 return M

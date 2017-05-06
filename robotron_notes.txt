@@ -28,6 +28,7 @@ screen = manager:machine().screens[":screen"]
 print(screen:width() .. "x" .. screen:height())
 screen:draw_box((r.myX>>8)*2, (r.myY>>8), (r.myX>>8)*2-5, (r.myY>>8)-5, 0xff00ffff, 0xff00ffff);
 
+r.screenline(r.my.X, r.my.Y, r.wp.X, r.wp.Y)
 r.screenfind(r.getobjxy(r.baddies[r.findnearest(r.baddies)]))
 
 for k,v in pairs(manager:machine().devices) do print(k) end
