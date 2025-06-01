@@ -33,3 +33,6 @@ AI Evolution:
      - None?: Chase nearest family, circular spray laser
      - No family: Move/shoot nearest foe (to line-of-fire)
   
+YouTube Videos:
+  - https://youtu.be/hPItPwnsjig
+  - https://youtu.be/7dapV20G3iw
